@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conversation Log Viewer</title>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --panel: #161616;
+    --line: #2a2a2a;
+    --text: #e8e8e8;
+    --muted: #8a8a8a;
+    --accent: #ffffff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+    line-height: 1.6;
+  }
+  header {
+    border-bottom: 1px solid var(--line);
+    padding: 2rem 1.5rem;
+    text-align: center;
+  }
+  header h1 {
+    font-size: 1.6rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  header p {
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin-top: 0.4rem;
+  }
+  main {
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 1.4rem 1.5rem;
+    margin-bottom: 1.2rem;
+  }
+  .card h2 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-bottom: 0.3rem;
+  }
+  .card .meta {
+    color: var(--muted);
+    font-size: 0.85rem;
+    margin-bottom: 1rem;
+  }
+  .play-btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--bg);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 0.45rem 1.1rem;
+    font-size: 0.9rem;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: background 0.15s ease, border-color 0.15s ease;
+  }
+  .play-btn:hover { background: #1f1f1f; border-color: #444; }
+  .play-btn.playing { background: var(--accent); color: var(--bg); border-color: var(--accent); }
+  .transcript {
+    display: none;
+    margin-top: 1rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--line);
+    white-space: pre-wrap;
+    font-size: 0.92rem;
+    color: #cfcfcf;
+  }
+  .transcript.open { display: block; }
+  .status {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+    margin-top: 2rem;
+  }
+  .status.error { color: #e07070; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Conversation Log</h1>
+  <p>Transcripts from Diptendu, Orko, and Harshad</p>
+</header>
+<main id="list">
+  <div class="status">Loading transcripts…</div>
+</main>
+<script>
+  const FILES = [
+    "session-2026-10-01.md",
+    "session-2026-10-01-b.md"
+  ];
+  const OWNER = "diptendudip";
+  const REPO = "conversation-log";
+  const list = document.getElementById("list");
+  let currentAudio = null;
+  let currentBtn = null;
+
+  function speak(text, btn) {
+    if (currentAudio) {
+      currentAudio.cancel();
+      currentAudio = null;
+      if (currentBtn) currentBtn.classList.remove("playing");
+    }
+    if (!window.speechSynthesis) {
+      alert("Speech is not supported in this browser.");
+      return;
+    }
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1;
+    u.pitch = 1;
+    u.onend = () => {
+      btn.classList.remove("playing");
+      currentAudio = null;
+      currentBtn = null;
+    };
+    u.onerror = () => {
+      btn.classList.remove("playing");
+      currentAudio = null;
+      currentBtn = null;
+    };
+    currentAudio = window.speechSynthesis;
+    currentBtn = btn;
+    btn.classList.add("playing");
+    window.speechSynthesis.speak(u);
+  }
+
+  function stripMarkdown(md) {
+    return md
+      .replace(/^#.*$/gm, "")
+      .replace(/\*\*/g, "")
+      .replace(/`/g, "")
+      .replace(/^---$/gm, "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  async function load() {
+    list.innerHTML = "";
+    for (const file of FILES) {
+      try {
+        const res = await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/main/${file}`);
+        if (!res.ok) throw new Error(res.statusText);
+        const md = await res.text();
+        const card = document.createElement("div");
+        card.className = "card";
+        const title = (md.match(/^#\s+(.+)$/m) || ["", file])[1];
+        const meta = (md.match(/Participants:[^\n]+/) || [""])[0];
+        const body = stripMarkdown(md);
+        card.innerHTML = `
+          <h2>${title}</h2>
+          <div class="meta">${meta || file}</div>
+          <button class="play-btn" type="button">▶ Play</button>
+          <div class="transcript">${body.replace(/</g,"<").replace(/>/g,">")}</div>
+        `;
+        const btn = card.querySelector(".play-btn");
+        const transcript = card.querySelector(".transcript");
+        btn.addEventListener("click", () => {
+          transcript.classList.toggle("open");
+          if (transcript.classList.contains("open")) {
+            speak(body, btn);
+          } else if (currentBtn === btn) {
+            window.speechSynthesis.cancel();
+            btn.classList.remove("playing");
+            currentAudio = null;
+            currentBtn = null;
+          }
+        });
+        list.appendChild(card);
+      } catch (e) {
+        const err = document.createElement("div");
+        err.className = "status error";
+        err.textContent = `Could not load ${file}: ${e.message}`;
+        list.appendChild(err);
+      }
+    }
+    if (!list.querySelector(".card")) {
+      list.innerHTML = `<div class="status error">No transcripts found.</div>`;
+    }
+  }
+  load();
+</script>
+</body>
+</html>
