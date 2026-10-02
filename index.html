@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Conversation Log Viewer</title>
+<title>Conversation Log</title>
 <style>
   :root {
     --bg: #0d0d0d;
@@ -165,7 +165,7 @@
         card.innerHTML = `
           <h2>${title}</h2>
           <div class="meta">${meta || file}</div>
-          <button class="play-btn" type="button">▶ Play</button>
+          <button class="play-btn" type="button">&#9654; Play</button>
           <div class="transcript">${body.replace(/</g,"<").replace(/>/g,">")}</div>
         `;
         const btn = card.querySelector(".play-btn");
@@ -191,7 +191,7 @@
     }
     if (!list.querySelector(".card")) {
       list.innerHTML = `<div class="status error">No transcripts found.</div>`;
-    }
+      }
   }
   load();
 </script>
